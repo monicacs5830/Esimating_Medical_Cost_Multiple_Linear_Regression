@@ -1,0 +1,651 @@
+---
+title: "Estimating Medical Costs using Multiple Regression Models"
+output: html_document
+date: "2023-04-01"
+---
+
+###### Prepared by:
+
+###### Daksh Balkrushna Patel, 30190603
+
+###### Monica Chandramurthy, 30191289
+
+###### Saketh Ram Mamillapalli, 30187315
+
+```{r}
+#library(XQuartz)
+library(caret)
+library(olsrr)
+library(psych)
+library(lmtest)
+library(mctest)
+library(agricolae)
+library(MASS)
+library(binom)
+library(dbplyr)
+library(dplyr)
+library(EnvStats)
+library(ggformula)
+library(ggplot2)
+library(htmltools)
+library(ISLR)
+library(knitr)
+library(markdown)
+library(mosaic)
+library(mdsr)
+library(mosaicData)
+library(nycflights13)
+library(plyr)
+library(purrr)
+library(rmarkdown)
+library(rvest)
+library(shiny)
+library(stringi)
+library(tibble)
+library(tidyr)
+library(tidyselect)
+library(tinytex)
+library(yaml)
+library(shiny)
+library(GGally)
+library(car)
+```
+
+## **INTRODUCTION:**
+
+Medical expenses are one of the significant recurring expenses in human life. The rising cost of healthcare is an essential concern for many individuals and families. It's common knowledge that one lifestyle and various physical parameters dictate diseases or ailments one can have, and these ailments dictate medical expenses. According to multiple studies, significant factors contributing to higher personal medical care expenses include smoking, aging, and BMI. In this study, we aim to find a correlation between personal medical expenses and different factors and compare them. Then we use the prominent attributes as predictors to predict medical costs by creating linear regression models and comparing them using ANOVA. Our findings will provide insights into the factors driving medical costs and inform strategies for managing healthcare expenses.
+
+## DATASET
+
+This dataset is in the public domain (available on <https://github.com/stedy/Machine-Learning-with-R-datasets> or <https://www.kaggle.com/mirichoi0218/insurance>), provided from "Machine Learning with R" by Brett Lantz, this is a clean dataset, as we will see in the next paragraph. Treatment costs depend on many factors: diagnosis, type of clinic, city of residence, age and so on. We have no data on the diagnosis of patients. But we have other information that can help us to make a conclusion about the health of patients and practice regression analysis. Nonetheless, it is good to understand what they are. Here are some factors collected by insurance, on which we will study the influence on the cost of medical insurance premiums: We have a dataset that includes 1338 observations on 7 variables.
+
+Variables description:
+
+1.  AGE: age of the primary beneficiary; Quantitative Data
+2.  SEX: insurance contractor's gender (female or male); Qualitative Data
+3.  BMI: body mass index, expressed as the ratio between weight and square of an individual's height, is used to indicate the state of healthy weight (kg / m \^ 2). The ideal weight is excellent, from 18.5 to 24.9; Quantitative Data
+4.  CHILDREN: Number of children covered by health insurance; Qualitative Data
+5.  SMOKER: Smoking/ Non-smoking; Qualitative Data
+6.  REGION: The beneficiary's residential area in the USA (northeast, southeast, southwest, northwest); Qualitative Data
+7.  CHARGES: Individual medical costs are billed by health insurance; Quantitative Data
+
+```{r}
+medical_cost= read.csv("/Users/monicachandramurthy/Downloads/insurance.csv")
+str(medical_cost)
+head(medical_cost, 4)
+```
+
+### **DATA CLEANING:**
+
+The Dataset is clean and does not have any missing/null values. As seen below:
+
+```{r}
+
+#Checking for null/missing values
+sum(is.na(medical_cost))
+```
+
+#### **DESCRIPTIVE DATA ANALYSIS:**
+
+Our response variable is 'charges', and our independent variables are 'age', 'bmi', 'sex', 'children', 'smoker' and 'region'.
+
+We will conduct some descriptive analysis, which includes determining the mean, median, and standard deviation of charges, and presenting the trends in a line graph. Additionally, we will examine the skewness and kurtosis of the distribution of charges.
+
+```{r}
+data_summary <- medical_cost %>%
+summarise(mean_charges = mean(charges),
+median_charges = median(charges),
+sd_charges = sd(charges))
+print(data_summary)
+```
+
+## **EXPLORATORY DATA ANALYSIS**
+
+```{r}
+# Graph to check relationshp between age and charges
+ggplot(data=medical_cost,mapping= aes(x=age,y=charges))+geom_point(color='red')+ geom_smooth(method = "lm", se = FALSE)
+
+# Graph to check relationship between bmi and charges by smoker
+ggplot(data=medical_cost,aes(x=bmi,y=charges,colour=smoker))+geom_point(size=1)+geom_smooth()+labs(title = "plot of charges vs bmi and taking smokers as an explanatory variable",x="bmi",y="charges")
+
+# Graph to check relationshp between children and charges by children
+ggplot(data=medical_cost,aes(x=bmi,y=log(charges),colour=children))+geom_point(size=1)+geom_smooth()+labs(title = "plot of charges vs bmi and taking no. of childern as an explanatory variable",x="bmi",y="charges")
+
+# Graph to check distribution of charges among male and female
+ggplot(medical_cost, aes(x = sex, y = charges)) +
+   geom_boxplot(aes(fill=sex), color = "black", alpha = 0.5) +
+   xlab("Sex") +
+   ylab("Medical Charges") +
+   ggtitle("Relationship between Sex and Medical Cost")
+
+# Graph to check distribution of charges among smokers and non-smokers
+ggplot(medical_cost, aes(x = smoker, y = charges)) +
+   geom_boxplot(aes(fill=smoker), color = "black", alpha = 0.5) +
+   xlab("Smoker") +
+   ylab("Medical Charges") +
+   ggtitle("Relationship between Smoker and Medical Cost")
+
+# Graph to check distribution of charges across all regions
+ggplot(medical_cost, aes(x = region, y = charges)) +
+   geom_boxplot(aes(fill=region), color = "black", alpha = 0.5) +
+   xlab("Region") +
+   ylab("Medical Charges") +
+   ggtitle("Relationship between Region and Medical Cost")
+
+mean_charges = mean(medical_cost$charges)
+#A histogram of the distribution of Happiness_Score
+ggplot(medical_cost, aes(x = charges)) +
+geom_histogram(color = "darkgreen", fill = "lightgreen", binwidth = 2000, ) +
+xlab("Medical Charges") +
+ylab("Frequency") +
+geom_vline(xintercept = mean_charges, linetype = "dashed", color = "black")
+```
+
+We conducted several graphical analyses to explore the relationship between medical charges and different predictors in our dataset.
+
+First, we created a scatter plot to examine the relationship between age and medical charges. The plot showed a positive linear relationship between age and charges, indicating that as age increases, medical charges also tend to increase.
+
+Next, we examined the relationship between body mass index (BMI) and medical charges by smokers. The plot reveals a positive linear relationship between BMI and medical charges for both smokers and non-smokers. However, the charges for smokers are significantly higher than non-smokers across all BMI values. This observation highlights the importance of considering smoking habits when estimating medical costs.
+
+To further explore the relationship between BMI and medical charges, we created a scatter plot that included the number of children as an explanatory variable. However, the plot did not show any significant pattern or relationship between BMI and medical charges with the number of children as an explanatory variable.
+
+We also investigated the distribution of medical charges among males and females using a box plot. The plot showed that the median charges were slightly higher for males than females, but the difference was not significant.
+
+We then examined the distribution of medical charges between smokers and non-smokers using another box plot. The plot revealed a significant difference in charges between the two groups, with smokers having significantly higher charges than non-smokers.
+
+Finally, we created a box plot to visualize the distribution of medical charges across all regions. The plot indicated that there were some differences in charges between different regions, with the southeast region having the highest median charges.
+
+Overall, these graphical analyses provided valuable insights into the relationships between medical charges and various predictors in our dataset.
+
+```{r}
+medical_cost <- medical_cost %>% 
+  mutate(has_children = ifelse(children > 0, "yes", "no")) %>% 
+  select(-children)
+
+ggplot(data=medical_cost,aes(x=bmi,y=log(charges),colour=has_children))+geom_point(size=1)+geom_smooth()+labs(title = "plot of charges vs bmi and taking no. of childern as an explanatory variable",x="bmi",y="charges")
+```
+
+In an attempt to explore the relationship between BMI and medical charges with the number of children as an explanatory variable, we created a new column "has_children" in our dataset, which categorizes individuals as having children or not based on whether their "children" column value is greater than zero or not. However, when we plotted the relationship between BMI and medical charges with "has_children" as an explanatory variable, we did not observe any significant pattern or relationship between these variables. Therefore, we concluded that the number of children does not seem to have a significant impact on the relationship between BMI and medical charges.
+
+This transformation can simplify the interpretation of the regression models by allowing us to compare the medical charges of individuals with and without children more directly.
+
+### MODELING PLAN
+
+For this project, we will utilize the techniques acquired in Data 603. Our approach involves first conducting a linear regression analysis using all of the predictors, and performing individual t-tests on each variable at a 5% significance level. Variables that are not statistically significant will be removed. A partial F-test will then be performed to compare the full and reduced models. Once we are satisfied with the main effects, we will employ individual t-tests to examine significant higher-order terms and interactions. A subsequent F-test will be used to evaluate whether the higher-order terms and interactions are significant. If so, they will be added to the main effects to form our final model. We will then verify our model's adherence to the six assumptions listed below:
+
+1.  Linearity Assumption - Review residual plots
+
+2.  Independence Assumption
+
+3.  Normality Assumption - Using the Shapiro-Wilk normality test
+
+4.  Equal Variance Assumption (heteroscedasticity) - Using the Breusch-Pagan test
+
+5.  Multicollinearity - Using variance inflation factors (VIF)
+
+6.  Outliers - Check Cook's distance and leverage
+
+If our model fails to satisfy any of these assumptions, we will review our methodology to see if we can make any improvements/transformations. Once our model satisfies most of the assumptions, we will use it to predict medical charges for sample data.
+
+## GUIDING QUESTIONS
+
+#### Identifying the key factors that contribute to medical costs and exploring their relationships with each other.
+
+**Conducting Individual Co-efficient (t-test)**
+
+-   Null Hypothesis, H0: βi = 0, i = age, factor(sex), bmi, factor(has_children), factor(smoker), factor(region)
+
+-   Alternate Hypothesis, Ha: βi != 0, i = age, factor(sex), bmi, factor(has_children), factor(smoker), factor(region)
+
+```{r}
+medical_cost_full_model =lm(charges~age+factor(sex)+bmi+factor(has_children)+factor(smoker)+ factor(region),data=medical_cost)
+summary(medical_cost_full_model)
+```
+
+Full Model: *Y(charges) = β0 + β1(age) + β2(factor(sex)) + β3(bmi) + β4(factor(has_children)) + β6(factor(smoker)) +β7(factor(region)) + ϵ*
+
+From the above summary, the output shows that the factor(sex) has tcal= -0.379 with the p-value= 0.70456\> 0.05,indicating that we should clearly not to reject the null hypothesis that the sex does not significantly influence on medical charges at α = 0.05.
+
+**Conducting Partial F-Test**
+
+-   *Null Hypothesis, H0 : β2 = 0 in the model Y(charges) = β0 + β1(age) + β2(factor(sex)) + β3(bmi) + β4(factor(has_children)) + β6(factor(smoker)) +β7(factor(region)) + ϵ*
+
+-   *Alternate Hypothesis, Ha : β2 != 0 in the model Y(charges) = β0 + β1(age) + β2(factor(sex)) + β3(bmi) + β4(factor(has_children)) + β6(factor(smoker)) +β7(factor(region)) + ϵ*
+
+```{r}
+#Checking our Reduced Model - First Order Model after removing sex
+medical_firstordermodel = lm(charges~age+bmi+factor(has_children)+factor(smoker)+ factor(region),data=medical_cost)
+summary(medical_firstordermodel)
+#Partial F-Test
+anova(medical_cost_full_model, medical_firstordermodel)
+```
+
+From the above data, after dropping the variable sex off the full model, the reduced output shows that Fcal = 0.1438, with df=1 and 1330 DF (p-value=0.7046 \> α = 0.05 ), indicating that we should clearly not to reject the null hypothesis which means that we definitely drop the variable sex off the model.
+
+At this point, from the initial estimated regression model is
+
+Y(charges) = -12001.01 + 256.91(age) - 126.41(factor(sex)) + 339.51(bmi) + 999.58(factor(has_children=yes)) + 23849.65(factor(smoker=yes)) -352.22(factor(region=northwest)) -1057.33(factor(region=southeast)) -944.26(factor(region=southwest)) + ϵ
+
+After checking individual coefficients test, the final regression model is
+
+Y(charges) = β0 + β1(age) + β3(bmi) + β4(factor(has_children)) + β6(factor(smoker)) +β7(factor(region)) + ϵ
+
+Y(charges) = -12050.69 + 257.02(age) + 339.00(bmi) + 997.67(factor(has_children=yes)) + 23837.87(factor(smoker=yes)) -351.46(factor(region=northwest)) -1032.43(factor(region=southeast)) -943.64(factor(region=southwest)) + ϵ
+
+The model has an Adjusted R-squared value of 0.749, indicating that 74.9% of the variation in medical charges can be explained by the predictors included in the model. The F-statistic is 571 with a p-value \< 2.2e-16, indicating that the model as a whole is statistically significant. Overall, the results suggest that age, BMI, number of children, smoker status, and region are important predictors of medical charges, and the model has a good fit.
+
+```{r}
+#Performance metrics
+l_pred <- predict(medical_cost_full_model, medical_cost)
+radj <- summary(medical_cost_full_model)$adj.r.squared
+rse <- sqrt(sum(residuals(medical_cost_full_model)^2) / medical_cost_full_model$df.residual ) 
+rmse <- RMSE(l_pred, medical_cost$charges)
+aic <- AIC(medical_cost_full_model)
+l_reg <- cbind("Adjusted R sq"=radj, "RSE"=rse, "RMSE"=rmse, "AIC"=aic)
+cat("\n Performace metrics for the full model: \n")
+l_reg
+
+
+#Performance metrics
+l2_pred <- predict(medical_firstordermodel, medical_cost)
+radj2 <- summary(medical_firstordermodel)$adj.r.squared
+rse2 <- sqrt(sum(residuals(medical_firstordermodel)^2) / medical_firstordermodel$df.residual ) 
+rmse2 <- RMSE(l2_pred, medical_cost$charges)
+aic2 <- AIC(medical_firstordermodel)
+cp2 <- ols_mallows_cp(medical_cost_full_model, medical_firstordermodel)
+l2_reg <- cbind("Adjusted R sq"=radj2, "RSE"=rse2, "RMSE"=rmse2, "AIC"=aic2, "CP-Criterion"=cp2)
+cat("\n Performace metrics for the reduced model: \n")
+l2_reg
+```
+
+We considered five model performance metrics: adjusted R-squared, residual standard error (RSE), root mean squared error (RMSE), Akaike Information Criterion (AIC), and the Cp-criterion.
+
+The performance metrics for the full model are an adjusted R-squared of 0.7488, a residual standard error (RSE) of 6069.008, a root-mean-square error (RMSE) of 6048.562, an Akaike information criterion (AIC) of 27118.55, and a Cp-criterion value of 5.856.
+
+The performance metrics for the reduced model are an adjusted R-squared of 0.7490, an RSE of 6067.054, an RMSE of 6048.889, an AIC of 27116.7, and a Cp-criterion value of 1.8516.
+
+Both models have similar performance metrics, but the reduced model has a slightly better adjusted R-squared and AIC value, suggesting that it is a slightly better fit for the data. However, it is important to consider the specific research question and the variables included in each model when choosing which model to use.
+
+**Checking for Interaction Model with Quantitative Predictors**
+
+-   Null Hypothesis, H0: βi = 0, (i=1,2,...,p)
+
+-   Alternate Hypothesis, Ha: βi != 0, (i=1,2,...,p)
+
+```{r}
+medical_interaction = lm(charges ~ (age+ bmi+ factor(has_children) +factor(smoker)+ factor(region))^2,data=medical_cost)
+summary(medical_interaction)
+```
+
+The interaction model shows the output shows that Fcal = 282.3, with df=25 and 1312 DF (p-value= 2.2e-16 \< α = 0.05 ), indicating that there's clearly interaction between the terms. However from the above data, the interaction model, only the interaction between bmi:factor(smoker) is significant compared to the others with p-value \< 0.05 (2e-16). Thus we will only consider only : bmi:factor(smoker)
+
+The adjusted R-squared value is 0.8402, indicating that the model explains around 84.02% of the variance in medical charges. The F-statistic has a high value of 135.6, indicating that the model is statistically significant.
+
+In conclusion, the multiple linear regression model with interaction terms provides insights into the impact of age, number of children, smoking status, and region on medical charges. The model is statistically significant and explains a considerable proportion of the variance in medical charges.
+
+**Conducting F-test for first order model and interaction model**
+
+-   Null Hypothesis (H0): The reduced model without the interaction term is a better fit for the data.
+
+-   Alternative Hypothesis (HA): The full model with the interaction term is a better fit for the data.
+
+```{r}
+medical_interaction_2 = lm(charges ~ age+ bmi+ factor(has_children) +factor(smoker)+ factor(region) + bmi:factor(smoker) ,data=medical_cost)
+summary(medical_interaction_2)
+
+anova(medical_firstordermodel, medical_interaction_2)
+```
+
+Using the output above, we can see that the F-statistic is 738.18 with 1 and 1329 degrees of freedom and a p-value less than 2.2e-16. This indicates that we can reject the null hypothesis and conclude that the full model with the interaction term is a better fit for the data than the reduced model without the interaction term. Therefore, we should include the interaction term in our final model.
+
+The model has an adjusted R-squared value of 0.8385, indicating that it explains around 83.85% of the variance in medical charges. The F-statistic has a high value of 585.7, indicating that the model is statistically significant.
+
+In conclusion, this model provides insights into the impact of age, number of children, smoking status, and the interaction between BMI and smoking status on medical charges. These predictors are significant in explaining the variance in medical charges. However, further analyses may be necessary to validate the assumptions of the model.
+
+***Our Regression model upto this point is:***
+
+Y(charges) = β0 + β1(age) + β2(bmi) + β3(factor(has_children)) + β4(factor(smoker)) +β5(factor(region)) + β6(bmi:factor(smoker))+ ϵ
+
+**Checking for non-linear pattern**:\
+The "pairs.panels" function is used to create a matrix of scatterplots and correlation coefficients between all pairs of variables in the "medical_cost" dataset. The function uses Pearson's correlation method to compute the correlation coefficients and displays histograms and density plots for each variable.
+
+To visualize the relationships between variables and identify non-linear patterns, which may suggest the need for quadratic or higher-order terms.
+
+```{r}
+#Checking for Quadratic terms:
+pairs.panels(medical_cost, 
+             method = "pearson", # correlation method
+             hist.col = "#00AFBB",
+             density = TRUE,  # show density plots
+             ellipses = TRUE # show correlation ellipses
+             )
+
+```
+
+The pairs plot indicates that the relationship between the dependent variable (charges) and the independent variable (bmi) may be non-linear. Therefore, a quadratic term (bmi\^2) was added to the model.
+
+-   Null Hypothesis, H(0) : βp−q+1 = βp−q+2 = \... = βp = 0 : Higher order terms are not significant
+
+-   Alternate Hypothesis, H(A) : at least one βp 6 = 0 : At least one higher order term is significant
+
+```{r}
+medical_quad_model_Reduced = lm(charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker)+ factor(region) + (bmi:factor(smoker)) ,data=medical_cost)
+summary(medical_quad_model_Reduced)
+```
+
+Since the p-value is less than the significant value 0.05 (2.2e-16). We reject our null hypothesis and accept our alternate hypothesis At least one higher order term is significant.
+
+The resulting medical_quad_model shows that age, bmi, bmi\^2, factor(has_children), factor(smoker), factor(region), and bmi:factor(smoker) are all significant predictors of medical charges. The adjusted R-squared value of 0.8397 suggests that the model explains a good proportion of the variance in the data.
+
+**Comparing Interaction model and Quadratic Model:**
+
+-   Null hypothesis (H0): The interaction model and the quadratic model have the same performance in predicting medical charges.
+
+-   Alternative hypothesis (Ha): The interaction model performs better than the quadratic model in predicting medical charges.
+
+```{r}
+medical_interact_model = lm(charges ~ age + bmi + factor(has_children) + factor(smoker) + factor(region) + (bmi:factor(smoker)), data = medical_cost)
+
+medical_quad_model = lm(charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker) + factor(region) + (bmi:factor(smoker)), data = medical_cost)
+
+anova(medical_quad_model, medical_interact_model)
+
+summary(medical_quad_model)
+```
+
+The partial F-test resulted in a p-value of 0.0009281, which is less than the significance level of 0.05. Thus we reject the null hypothesis and conclude that the full model with both interaction and quadratic terms provides a better fit to the data than the reduced model with only main effects.
+
+Final model is the model with both interaction and quadratic terms:
+
+-   The final model is the interaction model with the following equation:
+
+-   charges = -10714.746 + 262.505(age) + 573.180(bmi) - 8.742(bmi\^2) + 986.040(factor(has_children)=yes) - 20275.787(factor(smoker)=yes) - 654.393(factor(region)=northwest) - 1186.458(factor(region)=southeast) - 1271.236(factor(region)=southwest) + 1437.700(bmi:factor(smoker)=yes) + ϵ
+
+-   Y(charges) = β0 + β1(age) + β3(bmi) + β4(bmi\^2) + β5(factor(has_children)) + β6(factor(smoker)) +β7(factor(region)) + β8(bmi:factor(smoker))+ ϵ
+
+### Multiple Regression Assumptions
+
+To ensure the reliability of our model results, we performed tests to verify its adherence to several assumptions associated with multiple regression. The following sections detail the methods used to test for these assumptions.
+
+1.  **Linearity Assumption:**
+
+We can check the linearity assumption by plotting the residuals against the fitted values. The plot should show no pattern, and the residuals should be evenly scattered around zero.
+
+```{r}
+medical_cost_best_model = lm(charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker)+ factor(region) + (bmi:factor(smoker)) ,data=medical_cost)
+# Linearity Assumption - Review residual plots
+ggplot(medical_cost_best_model, aes(x=.fitted, y=.resid)) +
+  geom_point() + geom_smooth()+
+  geom_hline(yintercept = 0)
+```
+
+2.  **Independence Assumption:**
+
+The independence assumption states that the errors (residuals) should not be correlated with each other. In the case of the medical cost data, we do not have any indication that the residuals are dependent, so the assumption of independence is not violated.
+
+3.  **Normality Assumption:**
+
+To ensure the validity of our multiple regression analysis, it is necessary for the residuals to have a normal distribution. This can be tested by examining the histogram and qqplot of the residuals.
+
+However, we observe that the data points do not conform to a normal distribution, as there are a few points deviating from the normal line towards the tails, suggesting the possibility of outliers.
+
+We can use the Shapiro-Wilk normality test to test this assumption:
+
+Null Hypothesis H(0): The sample data is normally distributed
+
+Alternate Hypothesis H(A): The sample data is not normally distributed
+
+```{r}
+# Histogram of Residuals
+hist(resid(medical_cost_best_model), 
+     main = "Histogram of Residuals", 
+     xlab = "Residuals")
+
+# QQ Plot of Residuals
+plot(medical_cost_best_model, which=2)
+
+shapiro.test(resid(medical_cost_best_model))
+
+```
+
+The test results in a p-value of 2.2e-16, which is less than 0.05, which means that we reject our null hypothesis, that the normality assumption is violated
+
+4.  **Equal Variance Assumption (heteroscedasticity) :**
+
+To test for heteroscedasticity, we used the studentized Breusch-Pagan test with the following hypotheses:
+
+Null Hypothesis H(0): Heteroscedasticity is not present
+
+Alternative Hypothesis H(A): Heteroscedasticity is present
+
+```{r}
+plot(medical_cost_best_model, which=1)
+bptest(medical_cost_best_model)
+```
+
+We also examined the plot of fits to residuals, which revealed an no specific pattern against fitted values, indicating equal variance. Furthermore, the results of the Breusch-Pagan test (BP = 14.181, df = 9, p-value = 0.116) failed to reject the null hypothesis, suggesting that our model is homoscedastic.
+
+5.  **Multicollinearity Assumption:**
+
+The VIF method we used did not detect multi-collinearity in our model. To ensure that there were no highly correlated variables, we also used a ggpairs function to visualize the correlations between variables. From this, we concluded that the variables included in our first order model (age, children, bmi, smoker, and region) did not have extremely high correlations with each other (r \> 0.80). Therefore, we can assume that multicollinearity is not a major issue in our model.
+
+```{r}
+ggpairs(medical_cost,aes(color = "red", alpha = 0.5), lower = list(continuous = "smooth_loess", combo = "facethist", discrete = "facetbar", na = "na"))
+imcdiag(medical_firstordermodel, method="VIF")
+```
+
+6.  **Influential Points and Outliers**
+
+To ensure the validity of our model, we assessed the presence of influential points and outliers by analyzing leverage and Cook's distance. We identified several outliers in the data using a leverage cutoff value of 3p/n. The leverage and Cook's distance plots further confirmed the presence of these outliers. By removing these observations, we aimed to improve the model's overall performance and reliability.
+
+```{r}
+# Number of observations
+n <- nrow(medical_cost) 
+# Number of predictor variables (including the intercept)
+p <- length(coef(medical_cost_best_model))
+
+# Calculate cutoff value for leverage
+cutoff <- 3 * p / n 
+cutoff
+# Calculate leverage values
+leverage_values <- hatvalues(medical_cost_best_model) 
+# Identify observations with high leverage values
+outliers <- which(leverage_values > cutoff) 
+
+outliers
+
+#Cooks Distance
+plot(medical_cost_best_model, pch=18,col="red",which=c(4)) 
+# Residual vs Leverage plot
+plot(medical_cost_best_model, which = 5)
+
+plot(rownames(medical_cost),leverage_values, main = "Leverage in Advertising Dataset", xlab="observation",
+ylab = "Leverage Value")
+abline(h = 3 *p/n, lty = 1)
+
+if (length(outliers) > 0) {
+  medical_no_outliers <- medical_cost[-outliers, ]
+} else {
+  cat("No outliers detected.")
+}
+
+```
+
+```{r}
+# linear regression model after removing outliers
+medical_cost_best_model <- lm(charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker) + factor(region) + (bmi:factor(smoker)), data = medical_no_outliers)
+summary(medical_cost_best_model)
+```
+
+The linear regression model after removing the outliers is as follows:
+
+charges \~ age + bmi + I(bmi\^2) + factor(has_children) + factor(smoker) + factor(region) + (bmi:factor(smoker))
+
+The model summary indicates a strong model performance with an adjusted R-squared value of 0.8382, suggesting that approximately 83.82% of the variability in medical charges can be explained by the model. Most of the predictor variables are statistically significant at the 5% level or lower, except for the factor(region)northwest variable, which has a p-value slightly above the 5% threshold (0.0649). The model's residual standard error is 4785, and the F-statistic has a p-value less than 2.2e-16, indicating that the model is statistically significant overall.
+
+### **Exploring Data Transformations for Model Improvement**
+
+Since our model failed Normality assumption we would be trying some transformation :
+
+```{r}
+# linear regression model
+medical_cost_best_model <- lm(charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker) + factor(region) + (bmi:factor(smoker)), data = medical_no_outliers)
+
+# select numerical variables to scale
+num_vars <- c("charges", "age", "bmi")
+
+# scale numerical variables
+medical_cost_scaled <- medical_no_outliers
+medical_cost_scaled[, num_vars] <- scale(medical_cost_scaled[, num_vars])
+
+# fit the linear regression model using scaled data
+scaled_medical_cost_best_model <- lm(charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker) + factor(region) + (bmi:factor(smoker)), data = medical_cost_scaled)
+
+#checking homoscedasticity
+bptest(scaled_medical_cost_best_model)
+#Testing for Normality
+shapiro.test(residuals(scaled_medical_cost_best_model))
+
+# Box-Cox transformation
+bc <- boxcox(medical_cost_best_model, lambda = seq(-2, 2, by = 0.1))
+bestlambda <- bc$x[which(bc$y == max(bc$y))]
+bestlambda
+medical_cost_boxcox=lm((((charges^0.2626263)-1)/(0.2626263)) ~ age + bmi + I(bmi^2) + factor(has_children) + smoker+ factor(region) + (bmi:factor(smoker)), data= medical_no_outliers)
+
+#checking homoscedasticity
+bptest(medical_cost_boxcox)
+#Testing for Normality
+shapiro.test(residuals(medical_cost_boxcox))
+
+# Square root transformation
+medical_cost_sqrt <- lm(sqrt(charges) ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker)+ factor(region) + (bmi:factor(smoker)), data=medical_no_outliers)
+#checking homoscedasticity
+bptest(medical_cost_sqrt)
+#Testing for Normality
+shapiro.test(residuals(medical_cost_sqrt))
+
+# Exponential transformation
+medical_cost_exp <- lm(log(charges) ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker)+ factor(region) + (bmi:factor(smoker)), data=medical_no_outliers)
+#checking homoscedasticity
+bptest(medical_cost_exp)
+#Testing for Normality
+shapiro.test(residuals(medical_cost_exp))
+
+# Inverse transformation
+medical_cost_inv <- lm(1/charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker)+ factor(region) + (bmi:factor(smoker)), data=medical_no_outliers)
+#checking homoscedasticity
+bptest(medical_cost_inv)
+#Testing for Normality
+shapiro.test(residuals(medical_cost_inv))
+
+```
+
+Since our initial model failed the normality assumption, we attempted various data transformations to address this issue, including scaling the numerical variables, applying the Box-Cox, square root, exponential, and inverse transformations. However, none of them were successful in meeting the normality assumption. It might be appropriate to consider non-parametric methods or generalized linear models (GLM) to address this issue. Collecting additional data might also be an option, if possible. It is crucial to acknowledge that violating the normality assumption may affect the model's prediction accuracy and should be cautiously considered when interpreting the findings.
+
+```{r}
+# Our final model:
+medical_cost_best_model <- lm(charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker) + factor(region) + (bmi:factor(smoker)), data = medical_no_outliers)
+summary(medical_cost_best_model)
+
+residuals <- residuals(medical_cost_best_model)
+mse <- mean(residuals^2)
+rmse <- sqrt(mse)
+rmse
+```
+
+The final model is:
+
+Y(charges) = β0 + β1(age) + β3(bmi) + β4(bmi\^2) + β5(factor(has_children)) + β6(factor(smoker)) +β7(factor(region)) + β8(bmi:factor(smoker))+ ϵ
+
+charges = -9460.151 + 261.524 \* age + 496.050 \* bmi - 7.530 \* (bmi\^2) + 960.953 \* factor(has_children=yes) - 25505.415 \* factor(smoker=yes) - 699.189 \* factor(region=northwest) - 1191.259 \* factor(region=southeast) - 1304.699 \* factor(region=southwest) + 1608.891 \* bmi:factor(smoker=yes)
+
+**Interpretation of coefficients:**
+
+Interpretation of coefficients:
+
+**β0 (Intercept):** The baseline medical charge, -9460.151, is the expected charge for a non-smoking individual with no children, a BMI of 0, and residing in the northeast region. This value is not meaningful in practice, as it is not possible to have a negative medical charge or a BMI of 0.
+
+**β1 (age):** A one-year increase in age is associated with an increase of 261.524 in medical charges, holding all other factors constant.
+
+**β3 (bmi) and β4 (bmi\^2):** The relationship between BMI and medical charges is quadratic, with an increase of 496.050 in charges per unit increase in BMI and a decrease of 7.530 in charges per unit increase in BMI squared. This suggests that the effect of BMI on charges is not linear but follows a curve.
+
+**β5 (factor(has_children=yes)):** Having children is associated with an increase of 960.953 in medical charges compared to not having children, holding all other factors constant.
+
+**β6 (factor(smoker=yes)):** Being a smoker is associated with a decrease of 25505.415 in medical charges compared to being a non-smoker, holding all other factors constant. However, this should be interpreted with caution due to the interaction term.
+
+**β7 (factor(region)):** The coefficients for region indicate the differences in medical charges relative to the northeast region (the reference category). The northwest, southeast, and southwest regions have lower medical charges by 699.189, 1191.259, and 1304.699, respectively, compared to the northeast region, holding all other factors constant.
+
+**β8 (bmi:factor(smoker=yes)):** The interaction term between BMI and smoking status indicates that for a one-unit increase in BMI, a smoker's medical charges increase by 1608.891 more than a non-smoker's, holding all other factors constant. This means that the effect of BMI on medical charges is different for smokers compared to non-smokers.
+
+We considered the following model performance metrics: adjusted R-squared, residual standard error (RSE), and root mean squared error (RMSE).
+
+**Adjusted R-squared** measures the proportion of variance in the dependent variable that is explained by the independent variables in the model, adjusted for the number of independent variables in the model. In this case, the adjusted R-squared value is 0.8382, indicating that the model explains 83.82% of the variance in the dependent variable (charges), after adjusting for the number of independent variables.
+
+**RSE and RMSE** are measures of the variability of the residuals (the difference between the predicted and actual values of the dependent variable) in the model. RSE is the standard deviation of the residuals, while RMSE is the square root of the mean squared error of the residuals. In this case, the RSE is 4785. To calculate the RMSE, you can use the formula RMSE = 4766.874, where residuals are the differences between the predicted and actual values of the dependent variable.
+
+Overall, the model seems to have a good fit with the data, as indicated by the high adjusted R-squared value, and the low RSE. However, it is important to note that the model does not satisfy the normality assumption,
+
+### Projected Charges
+
+Based on our final linear regression model, we can predict the charges for new patients based on their age, bmi, number of children, smoking status, and region. The model equation is:
+
+```{r}
+# linear regression model
+medical_cost_best_model <- lm(charges ~ age + bmi + I(bmi^2) + factor(has_children) + factor(smoker) + factor(region) + (bmi:factor(smoker)), data = medical_no_outliers)
+```
+
+To predict the charges for a new patient, we can input their values for each predictor variable into the equation and solve for charges. We can use R to predict the charges for new patients based on our final model.
+
+```{r}
+# Predicting charges for new data
+newdata = data.frame(age=60, sex="female", bmi=25.84, has_children="yes", smoker="no", region="northwest")
+newdata2 = data.frame(age=19, sex="female", bmi=27.9, has_children="no", smoker="yes", region="southwest")
+
+predicted_charges_nonsmoker <- predict(medical_cost_best_model, newdata = newdata)
+predicted_charges_smoker <- predict(medical_cost_best_model, newdata = newdata2)
+predict(medical_cost_best_model,newdata,interval="predict")
+predict(medical_cost_best_model,newdata2,interval="predict")
+
+```
+
+For the first data point (newdata), the predicted medical charge is \$14,283.1. For this data point, the individual is a 60-year-old female with a BMI of 25.84, no children, a non-smoker, and lives in the northwest region.
+
+For the second data point (newdata2), the predicted medical charge is \$21,565.04. For this data point, the individual is a 19-year-old female with a BMI of 27.9, no children, a smoker, and lives in the southwest region.
+
+```{r}
+# Predicting charges for 30% of the actual data
+newdata <- medical_cost[sample(nrow(medical_no_outliers), nrow(medical_no_outliers)*0.3), ]
+predicted_charges <- predict(medical_cost_best_model, newdata = newdata)
+
+# Create a data frame with actual and predicted charges
+plot_data <- data.frame(actual_charges = newdata$charges,
+                         predicted_charges = predicted_charges)
+# Create scatter plot
+ggplot(plot_data, aes(x = actual_charges, y = predicted_charges)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color='red') +
+  labs(x = "Actual Charges", y = "Predicted Charges",
+       title = "Actual vs Predicted Charges") +
+  theme_bw()
+
+```
+
+We plotted predicting medical charges for 30% of the actual data: The plot visualizes the relationship between actual charges and predicted charges by the model. Each point represents an observation, with the x-axis showing the actual charges and the y-axis displaying the predicted charges. The red dashed line in the plot represents a perfect prediction, where the actual charges are equal to the predicted charges. If the model were perfect, all points would lie exactly on this line. By visually examining the scatter plot, it appears that the model's predictions are reasonably accurate for most observations, as many points are clustered around the red dashed line.
+
+The plot also reveals that the model's performance may vary across different ranges of charges. For instance, it might perform better for lower charges and less accurately for higher charges. In the future, it would be beneficial to investigate potential limitations and areas for improvement in the model's performance. By examining the model's behavior across different ranges of charges, refining feature selection, and exploring alternative modeling techniques, we can work towards enhancing the accuracy and overall effectiveness of the predictive model.
+
+## CONCLUSION AND FUTURE RECOMMENDATIONS
+
+In conclusion, the final model we developed has a good fit for the data with an adjusted R-squared value of 0.8382. The model includes variables such as age, BMI, BMI squared, factor(children), factor(smoker), factor(region), and an interaction term between BMI and factor(smoker). The model equation shows that charges increase with age, BMI, and the number of children. Charges are higher for smokers, and there are differences in charges based on region.
+
+However, it is important to note that the normality assumption was violated in the model, indicating that the errors are not normally distributed. To address this issue, we tried several transformations, including Scaling the data, the Box-Cox transformation, square root transformation, exponential transformation, and inverse transformation but none were successful in satisfying the normality assumption. This suggests that there may be other factors that are not captured in the model that influence medical charges.
+
+Future recommendations could include exploring more advanced techniques such as non-parametric regression or ensemble models (like GLM) to improve the model's performance. Additionally, collecting more data and including additional variables could also improve the model's accuracy.
+
+Overall, our model provides a useful tool for estimating medical charges based on several important predictor variables.
+
+## References
+
+1.  Dataset: Choi, M. (2018, February 21). Medical Cost Personal Datasets. Kaggle. Retrieved March 15, 2023, from <https://www.kaggle.com/datasets/mirichoi0218/insurance>
+2.  Moran, J. L., Solomon, P. J., Peisach, A. R., & Martin, J. (2007). New models for old questions: generalized linear models for cost prediction. Journal of evaluation in clinical practice, 13(3), 381-389.
+3.  Dalpiaz, D. (n.d.). Applied Statistics with R. Chapter 14 Transformations. Retrieved April 4, 2023, from <https://book.stat420.org/transformations.html>
