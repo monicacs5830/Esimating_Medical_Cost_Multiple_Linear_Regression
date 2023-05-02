@@ -70,7 +70,7 @@ Variables description:
 7.  CHARGES: Individual medical costs are billed by health insurance; Quantitative Data
 
 ```{r}
-medical_cost= read.csv("/Users/monicachandramurthy/Downloads/insurance.csv")
+medical_cost= read.csv("insurance.csv")
 str(medical_cost)
 head(medical_cost, 4)
 ```
